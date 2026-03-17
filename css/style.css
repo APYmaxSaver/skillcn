@@ -166,7 +166,7 @@ body {
 
 .search-bar input {
     width: 100%;
-    padding: 10px 48px 10px 42px;
+    padding: 10px 44px 10px 42px;
     border: none;
     border-radius: 24px;
     font-size: 0.95rem;
@@ -191,7 +191,7 @@ body {
 
 .search-clear {
     position: absolute;
-    right: 40px;
+    right: 12px;
     top: 50%;
     transform: translateY(-50%);
     background: none;
@@ -458,6 +458,7 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
+    grid-column: 1 / -1;
 }
 
 .skeleton-card {
@@ -488,7 +489,6 @@ body {
     padding: 14px 16px;
     cursor: pointer;
     transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
-    will-change: transform;
     display: flex;
     flex-direction: column;
 }
@@ -552,21 +552,10 @@ body {
     flex: 1;
 }
 
-.skill-desc mark {
-    background: #fef08a;
-    color: inherit;
-    padding: 0 2px;
-    border-radius: 2px;
-}
-
-[data-theme="dark"] .skill-desc mark {
-    background: #854d0e;
-}
-
 mark {
     background: #fef08a;
     color: inherit;
-    padding: 0 1px;
+    padding: 0 2px;
     border-radius: 2px;
 }
 
@@ -859,6 +848,27 @@ mark {
 .footer-note {
     margin-top: 4px;
     font-size: 0.78rem;
+}
+
+/* --- Scrollbar compensation when modal open --- */
+body.modal-open {
+    overflow: hidden;
+    padding-right: var(--scrollbar-width, 0px);
+}
+
+body.modal-open .nav {
+    padding-right: var(--scrollbar-width, 0px);
+}
+
+/* --- Reduced Motion --- */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    html { scroll-behavior: auto; }
+    .skill-card:hover { transform: none; }
 }
 
 /* --- Responsive --- */

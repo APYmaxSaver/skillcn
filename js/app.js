@@ -104,12 +104,25 @@
         history.replaceState(null, '', hash ? `#${hash}` : location.pathname);
     }
 
+    const VALID_SORTS = new Set(['popularity', 'category', 'name']);
+
     function restoreFromHash() {
         if (!location.hash) return;
         try {
             const params = new URLSearchParams(location.hash.slice(1));
-            if (params.has('c')) currentCategory = params.get('c');
-            if (params.has('s')) currentSort = params.get('s');
+            if (params.has('c')) {
+                const cat = params.get('c');
+                // Validate category exists (check after data loaded, fallback to 'all')
+                if (skillsData && !skillsData.categories.some(c => c.id === cat)) {
+                    currentCategory = 'all';
+                } else {
+                    currentCategory = cat;
+                }
+            }
+            if (params.has('s')) {
+                const sort = params.get('s');
+                currentSort = VALID_SORTS.has(sort) ? sort : 'popularity';
+            }
             if (params.has('q')) {
                 searchQuery = params.get('q');
                 dom.searchInput.value = searchQuery;
@@ -226,8 +239,9 @@
     function highlight(text, query) {
         if (!query) return esc(text);
         // Work on raw text, find match positions, then build escaped output
+        // Note: query is already lowercased by caller
         const lower = text.toLowerCase();
-        const qLower = query.toLowerCase();
+        const qLower = query;
         const parts = [];
         let lastIdx = 0;
         let idx = lower.indexOf(qLower);
@@ -465,14 +479,45 @@ rm -rf /tmp/_skill_tmp`;
 
         dom.modalOverlay.classList.add('active');
         dom.modalOverlay.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
+
+        // Scrollbar compensation: measure scrollbar width before hiding overflow
+        const scrollbarW = window.innerWidth - document.documentElement.clientWidth;
+        document.documentElement.style.setProperty('--scrollbar-width', scrollbarW + 'px');
+        document.body.classList.add('modal-open');
+
         dom.modalClose.focus();
     }
 
     function hideModal() {
         dom.modalOverlay.classList.remove('active');
         dom.modalOverlay.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
+        document.body.classList.remove('modal-open');
+        document.documentElement.style.removeProperty('--scrollbar-width');
+    }
+
+    // --- Modal focus trap ---
+    function trapFocus(e) {
+        if (!dom.modalOverlay.classList.contains('active')) return;
+        if (e.key !== 'Tab') return;
+
+        const modal = dom.modalOverlay.querySelector('.modal');
+        const focusable = modal.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+            if (document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            }
+        } else {
+            if (document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
     }
 
     // --- Events ---
@@ -517,8 +562,11 @@ rm -rf /tmp/_skill_tmp`;
         // Search clear button
         dom.searchClear.addEventListener('click', clearSearch);
 
-        // "/" shortcut to focus search
+        // Keyboard shortcuts + modal focus trap
         document.addEventListener('keydown', (e) => {
+            // Focus trap when modal is open
+            trapFocus(e);
+
             if (e.key === '/' && document.activeElement !== dom.searchInput && !dom.modalOverlay.classList.contains('active')) {
                 e.preventDefault();
                 dom.searchInput.focus();
