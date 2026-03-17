@@ -3,74 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Claude Code 技能中文收集站 - 收集、翻译并分类展示 80+ 个 Agent Skills">
+    <meta name="keywords" content="Claude Code, Agent Skills, 技能, 中文, Anthropic, MCP">
+    <meta name="theme-color" content="#4f46e5">
     <title>SkillCN - Claude Code 技能中文收集站</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <header class="header">
-        <div class="container">
-            <h1 class="logo">SkillCN</h1>
-            <p class="tagline">Claude Code 技能中文收集站</p>
-            <div class="search-bar">
-                <input type="text" id="searchInput" placeholder="搜索技能名称、标签..." autocomplete="off">
+        <div class="container header-inner">
+            <div>
+                <h1 class="logo">Skill<span class="logo-accent">CN</span></h1>
+                <p class="tagline">Claude Code 技能中文收集站</p>
             </div>
+            <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换深色模式" title="切换深色模式">
+                <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+        </div>
+        <div class="container">
+            <div class="search-bar">
+                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input type="text" id="searchInput" placeholder="搜索技能名称、标签..." autocomplete="off" aria-label="搜索技能">
+                <kbd class="search-kbd">/</kbd>
+            </div>
+            <div class="stats" id="stats"></div>
         </div>
     </header>
 
-    <nav class="nav">
-        <div class="container">
-            <div class="sort-controls">
-                <span class="sort-label">排序：</span>
-                <button class="sort-btn active" data-sort="popularity">按热度</button>
-                <button class="sort-btn" data-sort="category">按分类</button>
-                <button class="sort-btn" data-sort="name">按名称</button>
+    <nav class="nav" id="navBar">
+        <div class="container nav-inner">
+            <div class="sort-controls" role="radiogroup" aria-label="排序方式">
+                <span class="sort-label">排序</span>
+                <button class="sort-btn active" data-sort="popularity" role="radio" aria-checked="true">按热度</button>
+                <button class="sort-btn" data-sort="category" role="radio" aria-checked="false">按分类</button>
+                <button class="sort-btn" data-sort="name" role="radio" aria-checked="false">按名称</button>
             </div>
+            <button class="back-top" id="backTop" type="button" aria-label="回到顶部" title="回到顶部">↑ 顶部</button>
         </div>
     </nav>
 
-    <main class="main container">
-        <aside class="sidebar">
-            <h3>技能分类</h3>
-            <ul class="category-list" id="categoryList">
-                <li class="category-item active" data-category="all">
+    <main class="main container" id="mainContent">
+        <aside class="sidebar" id="sidebar">
+            <h3 class="sidebar-title">技能分类</h3>
+            <ul class="category-list" id="categoryList" role="listbox" aria-label="技能分类">
+                <li class="category-item active" data-category="all" role="option" aria-selected="true" tabindex="0">
                     <span class="cat-icon">📋</span>
                     <span class="cat-name">全部技能</span>
                     <span class="cat-count" id="totalCount">0</span>
                 </li>
             </ul>
             <div class="sidebar-info">
-                <h3>技能来源</h3>
+                <h3 class="sidebar-title">技能来源</h3>
                 <ul class="source-list">
-                    <li><a href="https://github.com/anthropics/skills" target="_blank">anthropics/skills</a></li>
-                    <li><a href="https://github.com/VoltAgent/awesome-agent-skills" target="_blank">VoltAgent/awesome-agent-skills</a></li>
-                    <li><a href="https://github.com/travisvn/awesome-claude-skills" target="_blank">travisvn/awesome-claude-skills</a></li>
-                    <li><a href="https://github.com/daymade/claude-code-skills" target="_blank">daymade/claude-code-skills</a></li>
-                    <li><a href="https://github.com/glebis/claude-skills" target="_blank">glebis/claude-skills</a></li>
+                    <li><a href="https://github.com/anthropics/skills" target="_blank" rel="noopener">anthropics/skills</a></li>
+                    <li><a href="https://github.com/VoltAgent/awesome-agent-skills" target="_blank" rel="noopener">VoltAgent/awesome-agent-skills</a></li>
+                    <li><a href="https://github.com/travisvn/awesome-claude-skills" target="_blank" rel="noopener">travisvn/awesome-claude-skills</a></li>
+                    <li><a href="https://github.com/daymade/claude-code-skills" target="_blank" rel="noopener">daymade/claude-code-skills</a></li>
+                    <li><a href="https://github.com/glebis/claude-skills" target="_blank" rel="noopener">glebis/claude-skills</a></li>
                 </ul>
             </div>
         </aside>
 
-        <section class="content">
+        <section class="content" aria-live="polite">
             <div class="content-header">
                 <h2 id="contentTitle">全部技能</h2>
                 <span class="skill-count" id="skillCount">0 个技能</span>
             </div>
-            <div class="skills-grid" id="skillsGrid">
-                <!-- Skills will be rendered here -->
+            <div class="skills-grid" id="skillsGrid" role="list">
+                <div class="skeleton-grid" id="skeleton">
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                </div>
             </div>
         </section>
     </main>
 
-    <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-hidden="true">
         <div class="modal" id="skillModal">
-            <button class="modal-close" id="modalClose">&times;</button>
+            <button class="modal-close" id="modalClose" type="button" aria-label="关闭">&times;</button>
             <div class="modal-content" id="modalContent"></div>
         </div>
     </div>
 
     <footer class="footer">
         <div class="container">
-            <p>SkillCN - Claude Code 技能中文收集站 | <a href="https://github.com/APYmaxSaver/skillcn" target="_blank">GitHub</a></p>
+            <p>SkillCN - Claude Code 技能中文收集站 | <a href="https://github.com/APYmaxSaver/skillcn" target="_blank" rel="noopener">GitHub</a></p>
             <p class="footer-note">数据来源于各开源技能仓库，翻译仅供参考</p>
         </div>
     </footer>
