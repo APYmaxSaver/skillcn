@@ -27,9 +27,10 @@ python tools/run.py --generate-only
 | 变量 | 说明 | 默认值 | 必需 |
 |------|------|--------|------|
 | `GITHUB_TOKEN` | GitHub Personal Access Token，提高 API 速率限制 | - | 推荐 |
-| `TRANSLATE_API_URL` | 翻译 API 地址（标准 OpenAI 格式） | - | 可选 |
+| `TRANSLATE_API_URL` | 翻译 API 地址 | - | 可选 |
 | `TRANSLATE_API_KEY` | 翻译 API 密钥 | - | 可选 |
 | `TRANSLATE_MODEL` | 模型名称 | `gpt-4o-mini` | 可选 |
+| `TRANSLATE_API_FORMAT` | API 格式：`chat_completions` 或 `responses` | 自动检测 | 可选 |
 | `TRANSLATE_SYSTEM_PROMPT` | 自定义翻译系统提示词 | 内置中文翻译提示 | 可选 |
 
 ### 配置 GitHub Token
@@ -42,7 +43,11 @@ export GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
 
 ### 配置翻译 API（可选）
 
-支持任何兼容 OpenAI `/v1/chat/completions` 格式的 API：
+支持两种 API 格式，URL 中包含 `/responses` 自动使用 Responses 格式，否则使用 Chat Completions 格式。也可通过 `TRANSLATE_API_FORMAT` 显式指定。
+
+#### Chat Completions 格式 (`/v1/chat/completions`)
+
+经典格式，兼容所有主流 API 提供商：
 
 ```bash
 # OpenAI 官方
@@ -70,7 +75,7 @@ export TRANSLATE_API_URL="https://api.moonshot.cn/v1/chat/completions"
 export TRANSLATE_API_KEY="sk-xxxx"
 export TRANSLATE_MODEL="moonshot-v1-8k"
 
-# Azure OpenAI
+# Azure OpenAI (Chat Completions)
 export TRANSLATE_API_URL="https://<resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=2024-02-01"
 export TRANSLATE_API_KEY="xxxx"
 export TRANSLATE_MODEL="gpt-4o-mini"
@@ -79,7 +84,35 @@ export TRANSLATE_MODEL="gpt-4o-mini"
 export TRANSLATE_API_URL="http://localhost:11434/v1/chat/completions"
 export TRANSLATE_API_KEY="ollama"
 export TRANSLATE_MODEL="qwen2.5:7b"
+```
 
+#### Responses 格式 (`/v1/responses`)
+
+OpenAI 新版 Responses API，推理模型（如 GPT-5）在此格式下性能更优：
+
+```bash
+# OpenAI Responses API
+export TRANSLATE_API_URL="https://api.openai.com/v1/responses"
+export TRANSLATE_API_KEY="sk-xxxx"
+export TRANSLATE_MODEL="gpt-4o-mini"
+
+# 使用推理模型
+export TRANSLATE_API_URL="https://api.openai.com/v1/responses"
+export TRANSLATE_API_KEY="sk-xxxx"
+export TRANSLATE_MODEL="gpt-5"
+
+# Azure OpenAI Responses API
+export TRANSLATE_API_URL="https://<resource>.openai.azure.com/openai/v1/responses?api-version=2025-03-01-preview"
+export TRANSLATE_API_KEY="xxxx"
+export TRANSLATE_MODEL="gpt-4o-mini"
+
+# 显式指定格式（覆盖自动检测）
+export TRANSLATE_API_FORMAT="responses"
+```
+
+#### 通用选项
+
+```bash
 # 自定义翻译提示词（可选）
 export TRANSLATE_SYSTEM_PROMPT="你是翻译专家，将英文技术文档翻译为中文，保留专有名词。"
 ```
@@ -110,8 +143,10 @@ export TRANSLATE_SYSTEM_PROMPT="你是翻译专家，将英文技术文档翻译
 
 翻译模式：
 - **内置词典**：预定义 100+ 技能名称翻译 + 术语替换
-- **AI 翻译**：调用兼容 OpenAI 格式的 API 进行全文翻译
+- **AI 翻译 (Chat Completions)**：调用 `/v1/chat/completions` 格式 API
+- **AI 翻译 (Responses)**：调用 OpenAI 新版 `/v1/responses` 格式 API
 - **翻译缓存**：自动缓存已翻译内容，避免重复调用
+- **格式自动检测**：根据 URL 自动选择 API 格式，也可手动指定
 
 ### run.py - 主程序
 

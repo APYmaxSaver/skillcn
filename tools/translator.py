@@ -270,31 +270,21 @@ DEFAULT_SYSTEM_PROMPT = (
 )
 
 
-def translate_with_api(
-    text: str,
-    api_url: str,
-    api_key: str,
-    model: str = "gpt-4o-mini",
-    system_prompt: str = "",
-) -> str:
-    """使用翻译 API 翻译文本
+def _detect_api_format(api_url: str) -> str:
+    """根据 URL 自动检测 API 格式
 
-    支持标准 OpenAI 格式的 API，包括：
-    - OpenAI 官方 (https://api.openai.com/v1/chat/completions)
-    - Azure OpenAI
-    - DeepSeek (https://api.deepseek.com/v1/chat/completions)
-    - 智谱 AI (https://open.bigmodel.cn/api/paas/v4/chat/completions)
-    - 月之暗面 Kimi (https://api.moonshot.cn/v1/chat/completions)
-    - 阿里通义千问 (https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions)
-    - 本地 Ollama (http://localhost:11434/v1/chat/completions)
-    - 任何兼容 OpenAI /v1/chat/completions 格式的 API
+    返回 "responses" 或 "chat_completions"
     """
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
+    if "/responses" in api_url:
+        return "responses"
+    return "chat_completions"
 
-    payload = json.dumps({
+
+def _build_chat_completions_payload(
+    text: str, model: str, system_prompt: str
+) -> dict:
+    """构建 Chat Completions 格式请求体 (/v1/chat/completions)"""
+    return {
         "model": model,
         "messages": [
             {
@@ -305,14 +295,88 @@ def translate_with_api(
         ],
         "temperature": 0.3,
         "max_tokens": 200,
-    }).encode("utf-8")
+    }
 
+
+def _build_responses_payload(
+    text: str, model: str, system_prompt: str
+) -> dict:
+    """构建 Responses 格式请求体 (/v1/responses)"""
+    return {
+        "model": model,
+        "instructions": system_prompt or DEFAULT_SYSTEM_PROMPT,
+        "input": text,
+        "store": False,
+    }
+
+
+def _parse_chat_completions_response(result: dict) -> str:
+    """解析 Chat Completions 格式响应"""
+    return result["choices"][0]["message"]["content"].strip()
+
+
+def _parse_responses_response(result: dict) -> str:
+    """解析 Responses 格式响应
+
+    Responses API 返回 output 数组，每项有 type 和 content。
+    文本输出的 type 为 "message"，content 为 content 数组。
+    """
+    for item in result.get("output", []):
+        if item.get("type") == "message":
+            for content in item.get("content", []):
+                if content.get("type") == "output_text":
+                    return content.get("text", "").strip()
+    # 兜底：尝试 output_text 字段（简化响应格式）
+    if result.get("output_text"):
+        return result["output_text"].strip()
+    return ""
+
+
+def translate_with_api(
+    text: str,
+    api_url: str,
+    api_key: str,
+    model: str = "gpt-4o-mini",
+    system_prompt: str = "",
+    api_format: str = "",
+) -> str:
+    """使用翻译 API 翻译文本
+
+    支持两种 API 格式：
+
+    1. Chat Completions (/v1/chat/completions) - 经典格式
+       - OpenAI 官方、DeepSeek、智谱、通义千问、Kimi、Azure、Ollama 等
+
+    2. Responses (/v1/responses) - OpenAI 新版格式
+       - OpenAI 官方 (https://api.openai.com/v1/responses)
+       - Azure OpenAI Responses API
+
+    格式自动检测：URL 包含 "/responses" 则使用 Responses 格式，否则使用 Chat Completions。
+    也可通过 api_format 参数或 TRANSLATE_API_FORMAT 环境变量显式指定。
+    """
+    fmt = api_format or _detect_api_format(api_url)
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    if fmt == "responses":
+        payload_dict = _build_responses_payload(text, model, system_prompt)
+    else:
+        payload_dict = _build_chat_completions_payload(text, model, system_prompt)
+
+    payload = json.dumps(payload_dict).encode("utf-8")
     req = urllib.request.Request(api_url, data=payload, headers=headers)
 
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             result = json.loads(resp.read().decode())
-            return result["choices"][0]["message"]["content"].strip()
+
+            if fmt == "responses":
+                return _parse_responses_response(result)
+            else:
+                return _parse_chat_completions_response(result)
     except urllib.error.HTTPError as e:
         body = e.read().decode() if e.fp else ""
         print(f"  [!] 翻译 API HTTP {e.code}: {body[:200]}")
@@ -331,11 +395,13 @@ class SkillTranslator:
         api_key: str = "",
         model: str = "",
         system_prompt: str = "",
+        api_format: str = "",
     ):
         self.api_url = api_url or os.environ.get("TRANSLATE_API_URL", "")
         self.api_key = api_key or os.environ.get("TRANSLATE_API_KEY", "")
         self.model = model or os.environ.get("TRANSLATE_MODEL", "gpt-4o-mini")
         self.system_prompt = system_prompt or os.environ.get("TRANSLATE_SYSTEM_PROMPT", "")
+        self.api_format = api_format or os.environ.get("TRANSLATE_API_FORMAT", "")
         self.use_api = bool(self.api_url and self.api_key)
         self.cache = {}
         self._load_cache()
@@ -373,7 +439,8 @@ class SkillTranslator:
             skill["description_cn"] = self.cache[cache_key]
         elif self.use_api and desc_en:
             translated = translate_with_api(
-                desc_en, self.api_url, self.api_key, self.model, self.system_prompt
+                desc_en, self.api_url, self.api_key,
+                self.model, self.system_prompt, self.api_format,
             )
             if translated:
                 skill["description_cn"] = translated
@@ -395,7 +462,8 @@ class SkillTranslator:
         """翻译所有技能"""
         print(f"\n开始翻译 {len(skills)} 个技能...")
         if self.use_api:
-            print(f"  使用 API 翻译: {self.api_url} (模型: {self.model})")
+            fmt = self.api_format or _detect_api_format(self.api_url)
+            print(f"  使用 API 翻译: {self.api_url} (模型: {self.model}, 格式: {fmt})")
         else:
             print("  使用内置词典翻译（设置 TRANSLATE_API_URL 和 TRANSLATE_API_KEY 启用 API 翻译）")
 
