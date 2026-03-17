@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkillCN - Claude Code 技能中文收集站</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">SkillCN</h1>
+            <p class="tagline">Claude Code 技能中文收集站</p>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="搜索技能名称、标签..." autocomplete="off">
+            </div>
+        </div>
+    </header>
+
+    <nav class="nav">
+        <div class="container">
+            <div class="sort-controls">
+                <span class="sort-label">排序：</span>
+                <button class="sort-btn active" data-sort="popularity">按热度</button>
+                <button class="sort-btn" data-sort="category">按分类</button>
+                <button class="sort-btn" data-sort="name">按名称</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main container">
+        <aside class="sidebar">
+            <h3>技能分类</h3>
+            <ul class="category-list" id="categoryList">
+                <li class="category-item active" data-category="all">
+                    <span class="cat-icon">📋</span>
+                    <span class="cat-name">全部技能</span>
+                    <span class="cat-count" id="totalCount">0</span>
+                </li>
+            </ul>
+            <div class="sidebar-info">
+                <h3>技能来源</h3>
+                <ul class="source-list">
+                    <li><a href="https://github.com/anthropics/skills" target="_blank">anthropics/skills</a></li>
+                    <li><a href="https://github.com/VoltAgent/awesome-agent-skills" target="_blank">VoltAgent/awesome-agent-skills</a></li>
+                    <li><a href="https://github.com/travisvn/awesome-claude-skills" target="_blank">travisvn/awesome-claude-skills</a></li>
+                    <li><a href="https://github.com/daymade/claude-code-skills" target="_blank">daymade/claude-code-skills</a></li>
+                    <li><a href="https://github.com/glebis/claude-skills" target="_blank">glebis/claude-skills</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <section class="content">
+            <div class="content-header">
+                <h2 id="contentTitle">全部技能</h2>
+                <span class="skill-count" id="skillCount">0 个技能</span>
+            </div>
+            <div class="skills-grid" id="skillsGrid">
+                <!-- Skills will be rendered here -->
+            </div>
+        </section>
+    </main>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="skillModal">
+            <button class="modal-close" id="modalClose">&times;</button>
+            <div class="modal-content" id="modalContent"></div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>SkillCN - Claude Code 技能中文收集站 | <a href="https://github.com/APYmaxSaver/skillcn" target="_blank">GitHub</a></p>
+            <p class="footer-note">数据来源于各开源技能仓库，翻译仅供参考</p>
+        </div>
+    </footer>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
