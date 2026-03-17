@@ -6,6 +6,12 @@
     <meta name="description" content="Claude Code 技能中文收集站 - 收集、翻译并分类展示 80+ 个 Agent Skills">
     <meta name="keywords" content="Claude Code, Agent Skills, 技能, 中文, Anthropic, MCP">
     <meta name="theme-color" content="#4f46e5">
+    <meta property="og:title" content="SkillCN - Claude Code 技能中文收集站">
+    <meta property="og:description" content="收集、翻译并分类展示 90+ 个 Claude Code Agent Skills，中文搜索浏览">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://apymaxsaver.github.io/skillcn/">
+    <meta name="twitter:card" content="summary">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
     <title>SkillCN - Claude Code 技能中文收集站</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -25,7 +31,8 @@
             <div class="search-bar">
                 <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
                 <input type="text" id="searchInput" placeholder="搜索技能名称、标签..." autocomplete="off" aria-label="搜索技能">
-                <kbd class="search-kbd">/</kbd>
+                <button class="search-clear hidden" id="searchClear" type="button" aria-label="清除搜索">&times;</button>
+                <kbd class="search-kbd" id="searchKbd">/</kbd>
             </div>
             <div class="stats" id="stats"></div>
         </div>
@@ -45,6 +52,10 @@
 
     <main class="main container" id="mainContent">
         <aside class="sidebar" id="sidebar">
+            <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-expanded="true">
+                <span class="sidebar-toggle-text">技能分类</span>
+                <span class="sidebar-toggle-arrow">▾</span>
+            </button>
             <h3 class="sidebar-title">技能分类</h3>
             <ul class="category-list" id="categoryList" role="listbox" aria-label="技能分类">
                 <li class="category-item active" data-category="all" role="option" aria-selected="true" tabindex="0">

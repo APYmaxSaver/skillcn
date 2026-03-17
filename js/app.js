@@ -3,10 +3,17 @@
 
     // --- State ---
     let skillsData = null;
-    let categoryMap = null;  // Map<id, category> for O(1) lookup
+    let categoryMap = null;
     let currentCategory = 'all';
     let currentSort = 'popularity';
     let searchQuery = '';
+
+    // Lazy load
+    const INITIAL_RENDER = 18;
+    const LOAD_MORE = 12;
+    let renderedCount = 0;
+    let allSorted = [];
+    let observer = null;
 
     // --- DOM cache ---
     const $ = (sel) => document.querySelector(sel);
@@ -21,6 +28,8 @@
         dom.skillCount = $('#skillCount');
         dom.contentTitle = $('#contentTitle');
         dom.searchInput = $('#searchInput');
+        dom.searchClear = $('#searchClear');
+        dom.searchKbd = $('#searchKbd');
         dom.modalOverlay = $('#modalOverlay');
         dom.modalContent = $('#modalContent');
         dom.modalClose = $('#modalClose');
@@ -28,14 +37,16 @@
         dom.backTop = $('#backTop');
         dom.navBar = $('#navBar');
         dom.stats = $('#stats');
+        dom.sidebarToggle = $('#sidebarToggle');
+        dom.sidebar = $('#sidebar');
     }
 
     // --- XSS Protection ---
+    const escEl = document.createElement('div');
     function esc(str) {
         if (!str) return '';
-        const d = document.createElement('div');
-        d.textContent = str;
-        return d.innerHTML;
+        escEl.textContent = str;
+        return escEl.innerHTML;
     }
 
     // --- Init ---
@@ -50,21 +61,17 @@
             skillsData = await resp.json();
         } catch (err) {
             console.error('Failed to load skills.json:', err);
-            dom.grid.innerHTML = '<div class="empty-state"><p>加载失败，请刷新重试</p></div>';
+            dom.grid.innerHTML = '<div class="empty-state"><div class="empty-icon">😵</div><p>加载失败，请刷新重试</p></div>';
             return;
         }
 
-        // Build category lookup map
         categoryMap = new Map(skillsData.categories.map(c => [c.id, c]));
 
-        // Restore state from URL hash
         restoreFromHash();
-
         buildCategoryList();
         renderSkills();
         updateStats();
 
-        // Remove skeleton
         if (dom.skeleton) dom.skeleton.remove();
     }
 
@@ -106,8 +113,8 @@
             if (params.has('q')) {
                 searchQuery = params.get('q');
                 dom.searchInput.value = searchQuery;
+                syncSearchUI();
             }
-            // Sync sort buttons
             $$('.sort-btn').forEach(btn => {
                 const isActive = btn.dataset.sort === currentSort;
                 btn.classList.toggle('active', isActive);
@@ -138,10 +145,10 @@
             });
         dom.categoryList.appendChild(frag);
 
-        // Update "all" active state
         if (currentCategory !== 'all') {
-            dom.categoryList.querySelector('[data-category="all"]').classList.remove('active');
-            dom.categoryList.querySelector('[data-category="all"]').setAttribute('aria-selected', 'false');
+            const allItem = dom.categoryList.querySelector('[data-category="all"]');
+            allItem.classList.remove('active');
+            allItem.setAttribute('aria-selected', 'false');
         }
     }
 
@@ -149,6 +156,21 @@
         const total = skillsData.skills.length;
         const catCount = skillsData.categories.length;
         dom.stats.textContent = `共 ${total} 个技能，${catCount} 个分类`;
+    }
+
+    // --- Search UI sync ---
+    function syncSearchUI() {
+        const hasQuery = dom.searchInput.value.trim().length > 0;
+        dom.searchClear.classList.toggle('hidden', !hasQuery);
+        dom.searchKbd.classList.toggle('hidden', hasQuery);
+    }
+
+    function clearSearch() {
+        searchQuery = '';
+        dom.searchInput.value = '';
+        syncSearchUI();
+        renderSkills();
+        dom.searchInput.focus();
     }
 
     // --- Filtering & Sorting ---
@@ -178,11 +200,10 @@
         } else if (currentSort === 'name') {
             skills.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
         }
-        // category sort: handled in render
         return skills;
     }
 
-    // --- Popularity Helpers ---
+    // --- Helpers ---
     function popClass(p) {
         if (p >= 85) return 'popularity-high';
         if (p >= 70) return 'popularity-mid';
@@ -201,12 +222,51 @@
         return cat ? `${cat.icon} ${cat.name}` : catId;
     }
 
-    // --- Search Highlight ---
+    // --- Search Highlight (XSS-safe) ---
     function highlight(text, query) {
         if (!query) return esc(text);
-        const escaped = esc(text);
-        const qEsc = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return escaped.replace(new RegExp(`(${qEsc})`, 'gi'), '<mark>$1</mark>');
+        // Work on raw text, find match positions, then build escaped output
+        const lower = text.toLowerCase();
+        const qLower = query.toLowerCase();
+        const parts = [];
+        let lastIdx = 0;
+        let idx = lower.indexOf(qLower);
+        while (idx !== -1) {
+            if (idx > lastIdx) parts.push(esc(text.slice(lastIdx, idx)));
+            parts.push('<mark>' + esc(text.slice(idx, idx + qLower.length)) + '</mark>');
+            lastIdx = idx + qLower.length;
+            idx = lower.indexOf(qLower, lastIdx);
+        }
+        if (lastIdx < text.length) parts.push(esc(text.slice(lastIdx)));
+        return parts.join('');
+    }
+
+    // --- Install command builder ---
+    function buildInstallCmd(skill) {
+        // sourceUrl examples:
+        //   https://github.com/anthropics/skills/tree/main/skills/docx
+        //   https://github.com/daymade/claude-code-skills
+        const url = skill.sourceUrl || '';
+        const treeMatch = url.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/tree\/([^/]+)\/(.+)$/);
+
+        if (treeMatch) {
+            const repo = treeMatch[1];
+            const branch = treeMatch[2];
+            const path = treeMatch[3];
+            return `# 克隆并提取技能文件
+git clone --depth 1 -b ${branch} \\
+  https://github.com/${repo}.git /tmp/_skill_tmp
+mkdir -p .claude/skills/${esc(skill.nameEn)}
+cp -r /tmp/_skill_tmp/${path}/* .claude/skills/${esc(skill.nameEn)}/
+rm -rf /tmp/_skill_tmp`;
+        }
+
+        // Fallback: full repo clone
+        return `# 克隆源仓库并手动复制技能文件
+git clone --depth 1 ${esc(url)} /tmp/_skill_tmp
+mkdir -p .claude/skills/${esc(skill.nameEn)}
+# 将对应技能文件复制到上述目录
+rm -rf /tmp/_skill_tmp`;
     }
 
     // --- Render ---
@@ -232,13 +292,55 @@
 </div>`;
     }
 
+    // --- Intersection Observer for lazy loading ---
+    function setupObserver() {
+        if (observer) observer.disconnect();
+
+        const sentinel = document.createElement('div');
+        sentinel.className = 'load-sentinel';
+        sentinel.style.height = '1px';
+        dom.grid.appendChild(sentinel);
+
+        observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && renderedCount < allSorted.length) {
+                loadMore();
+            }
+        }, { rootMargin: '200px' });
+
+        observer.observe(sentinel);
+    }
+
+    function loadMore() {
+        const end = Math.min(renderedCount + LOAD_MORE, allSorted.length);
+        const frag = document.createRange().createContextualFragment(
+            allSorted.slice(renderedCount, end).map(renderSkillCard).join('')
+        );
+
+        // Insert before sentinel
+        const sentinel = dom.grid.querySelector('.load-sentinel');
+        if (sentinel) {
+            dom.grid.insertBefore(frag, sentinel);
+        } else {
+            dom.grid.appendChild(frag);
+        }
+        renderedCount = end;
+
+        // Remove sentinel if done
+        if (renderedCount >= allSorted.length && observer) {
+            observer.disconnect();
+            const s = dom.grid.querySelector('.load-sentinel');
+            if (s) s.remove();
+        }
+    }
+
     function renderSkills() {
+        if (observer) observer.disconnect();
+
         const skills = getFilteredSkills();
         const sorted = sortSkills(skills);
 
         dom.skillCount.textContent = `${sorted.length} 个技能`;
 
-        // Title
         if (currentCategory === 'all') {
             dom.contentTitle.textContent = searchQuery ? `搜索: "${searchQuery}"` : '全部技能';
         } else {
@@ -246,20 +348,28 @@
         }
 
         if (sorted.length === 0) {
-            dom.grid.innerHTML = '<div class="empty-state"><p>没有找到匹配的技能</p></div>';
+            const hasSearch = searchQuery.length > 0;
+            dom.grid.innerHTML = `<div class="empty-state">
+                <div class="empty-icon">🔍</div>
+                <p>没有找到匹配的技能</p>
+                ${hasSearch ? '<p class="empty-hint">试试其他关键词，或清除搜索条件</p><button class="empty-clear-btn" id="emptyClearBtn">清除搜索</button>' : ''}
+            </div>`;
+            if (hasSearch) {
+                const btn = $('#emptyClearBtn');
+                if (btn) btn.addEventListener('click', clearSearch);
+            }
             updateHash();
             return;
         }
 
-        let html;
         if (currentSort === 'category') {
+            // Category grouped view (no lazy load, usually fewer items per group header)
             const groups = new Map();
             sorted.forEach(s => {
                 if (!groups.has(s.category)) groups.set(s.category, []);
                 groups.get(s.category).push(s);
             });
 
-            // Sort groups by category popularity
             const sortedEntries = [...groups.entries()].sort((a, b) => {
                 const ca = categoryMap.get(a[0]);
                 const cb = categoryMap.get(b[0]);
@@ -272,12 +382,20 @@
                 parts.push(`<div class="category-group-header"><h3>${esc(catName(catId))} (${catSkills.length})</h3></div>`);
                 parts.push(catSkills.map(renderSkillCard).join(''));
             }
-            html = parts.join('');
+            dom.grid.innerHTML = parts.join('');
         } else {
-            html = sorted.map(renderSkillCard).join('');
+            // Lazy load: render initial batch, then use IntersectionObserver
+            allSorted = sorted;
+            renderedCount = 0;
+            const initial = sorted.slice(0, INITIAL_RENDER);
+            renderedCount = initial.length;
+            dom.grid.innerHTML = initial.map(renderSkillCard).join('');
+
+            if (sorted.length > INITIAL_RENDER) {
+                setupObserver();
+            }
         }
 
-        dom.grid.innerHTML = html;
         updateHash();
     }
 
@@ -285,6 +403,8 @@
     function showModal(skillId) {
         const skill = skillsData.skills.find(s => s.id === skillId);
         if (!skill) return;
+
+        const installCmd = buildInstallCmd(skill);
 
         dom.modalContent.innerHTML = `
             <h2>${esc(skill.name)}</h2>
@@ -309,19 +429,39 @@
             </div>
             <div class="modal-section">
                 <h4>安装方式</h4>
-                <div class="modal-install">mkdir -p .claude/skills/${esc(skill.nameEn)}
-# 方式一：直接从源仓库拉取
-cd .claude/skills
-git clone --depth 1 --filter=blob:none --sparse ${esc(skill.sourceUrl)} _tmp
-cd _tmp && git sparse-checkout set ${esc(skill.nameEn)}
-mv ${esc(skill.nameEn)}/* ../${esc(skill.nameEn)}/
-cd .. && rm -rf _tmp
-
-# 方式二：手动下载 SKILL.md 到对应目录</div>
+                <div class="modal-install-wrapper">
+                    <button class="copy-btn" id="copyInstallBtn" type="button">复制</button>
+                    <div class="modal-install" id="installCode">${installCmd}</div>
+                </div>
             </div>
             <div class="modal-section" style="margin-top:20px">
                 <a class="modal-link" href="${esc(skill.sourceUrl)}" target="_blank" rel="noopener">查看源仓库 →</a>
             </div>`;
+
+        // Copy button handler
+        const copyBtn = $('#copyInstallBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                const code = $('#installCode');
+                if (!code) return;
+                const text = code.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    copyBtn.textContent = '已复制 ✓';
+                    copyBtn.classList.add('copied');
+                    setTimeout(() => {
+                        copyBtn.textContent = '复制';
+                        copyBtn.classList.remove('copied');
+                    }, 2000);
+                }).catch(() => {
+                    // Fallback: select text
+                    const range = document.createRange();
+                    range.selectNodeContents(code);
+                    const sel = getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                });
+            });
+        }
 
         dom.modalOverlay.classList.add('active');
         dom.modalOverlay.setAttribute('aria-hidden', 'false');
@@ -367,11 +507,15 @@ cd .. && rm -rf _tmp
         let searchTimer;
         dom.searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimer);
+            syncSearchUI();
             searchTimer = setTimeout(() => {
                 searchQuery = e.target.value.trim();
                 renderSkills();
             }, 180);
         });
+
+        // Search clear button
+        dom.searchClear.addEventListener('click', clearSearch);
 
         // "/" shortcut to focus search
         document.addEventListener('keydown', (e) => {
@@ -425,10 +569,16 @@ cd .. && rm -rf _tmp
             }
         }, { passive: true });
 
+        // Mobile sidebar toggle
+        dom.sidebarToggle.addEventListener('click', () => {
+            const expanded = dom.sidebarToggle.getAttribute('aria-expanded') === 'true';
+            dom.sidebarToggle.setAttribute('aria-expanded', !expanded);
+            dom.sidebar.classList.toggle('collapsed', expanded);
+        });
+
         // Hash change (browser back/forward)
         window.addEventListener('hashchange', () => {
             restoreFromHash();
-            // Re-sync category UI
             $$('.category-item').forEach(el => {
                 const isActive = el.dataset.category === currentCategory;
                 el.classList.toggle('active', isActive);
