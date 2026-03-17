@@ -263,10 +263,31 @@ def translate_description_simple(desc_en: str) -> str:
     return result
 
 
-def translate_with_api(text: str, api_url: str, api_key: str) -> str:
+DEFAULT_SYSTEM_PROMPT = (
+    "你是一个技术文档翻译专家。将以下英文技术描述翻译为简洁的中文。"
+    "保留专有名词（如 React、Next.js、Cloudflare 等）不翻译。"
+    "翻译要简洁、专业、自然。只返回翻译结果，不要解释。"
+)
+
+
+def translate_with_api(
+    text: str,
+    api_url: str,
+    api_key: str,
+    model: str = "gpt-4o-mini",
+    system_prompt: str = "",
+) -> str:
     """使用翻译 API 翻译文本
 
-    支持兼容 OpenAI 格式的 API（如 DeepSeek、智谱等）
+    支持标准 OpenAI 格式的 API，包括：
+    - OpenAI 官方 (https://api.openai.com/v1/chat/completions)
+    - Azure OpenAI
+    - DeepSeek (https://api.deepseek.com/v1/chat/completions)
+    - 智谱 AI (https://open.bigmodel.cn/api/paas/v4/chat/completions)
+    - 月之暗面 Kimi (https://api.moonshot.cn/v1/chat/completions)
+    - 阿里通义千问 (https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions)
+    - 本地 Ollama (http://localhost:11434/v1/chat/completions)
+    - 任何兼容 OpenAI /v1/chat/completions 格式的 API
     """
     headers = {
         "Content-Type": "application/json",
@@ -274,15 +295,11 @@ def translate_with_api(text: str, api_url: str, api_key: str) -> str:
     }
 
     payload = json.dumps({
-        "model": "deepseek-chat",
+        "model": model,
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "你是一个技术文档翻译专家。将以下英文技术描述翻译为简洁的中文。"
-                    "保留专有名词（如 React、Next.js、Cloudflare 等）不翻译。"
-                    "翻译要简洁、专业、自然。只返回翻译结果，不要解释。"
-                ),
+                "content": system_prompt or DEFAULT_SYSTEM_PROMPT,
             },
             {"role": "user", "content": text},
         ],
@@ -296,6 +313,10 @@ def translate_with_api(text: str, api_url: str, api_key: str) -> str:
         with urllib.request.urlopen(req, timeout=30) as resp:
             result = json.loads(resp.read().decode())
             return result["choices"][0]["message"]["content"].strip()
+    except urllib.error.HTTPError as e:
+        body = e.read().decode() if e.fp else ""
+        print(f"  [!] 翻译 API HTTP {e.code}: {body[:200]}")
+        return ""
     except Exception as e:
         print(f"  [!] 翻译 API 失败: {e}")
         return ""
@@ -304,9 +325,17 @@ def translate_with_api(text: str, api_url: str, api_key: str) -> str:
 class SkillTranslator:
     """技能翻译器"""
 
-    def __init__(self, api_url: str = "", api_key: str = ""):
+    def __init__(
+        self,
+        api_url: str = "",
+        api_key: str = "",
+        model: str = "",
+        system_prompt: str = "",
+    ):
         self.api_url = api_url or os.environ.get("TRANSLATE_API_URL", "")
         self.api_key = api_key or os.environ.get("TRANSLATE_API_KEY", "")
+        self.model = model or os.environ.get("TRANSLATE_MODEL", "gpt-4o-mini")
+        self.system_prompt = system_prompt or os.environ.get("TRANSLATE_SYSTEM_PROMPT", "")
         self.use_api = bool(self.api_url and self.api_key)
         self.cache = {}
         self._load_cache()
@@ -343,7 +372,9 @@ class SkillTranslator:
         if cache_key in self.cache:
             skill["description_cn"] = self.cache[cache_key]
         elif self.use_api and desc_en:
-            translated = translate_with_api(desc_en, self.api_url, self.api_key)
+            translated = translate_with_api(
+                desc_en, self.api_url, self.api_key, self.model, self.system_prompt
+            )
             if translated:
                 skill["description_cn"] = translated
                 self.cache[cache_key] = translated
@@ -364,7 +395,7 @@ class SkillTranslator:
         """翻译所有技能"""
         print(f"\n开始翻译 {len(skills)} 个技能...")
         if self.use_api:
-            print(f"  使用 API 翻译: {self.api_url}")
+            print(f"  使用 API 翻译: {self.api_url} (模型: {self.model})")
         else:
             print("  使用内置词典翻译（设置 TRANSLATE_API_URL 和 TRANSLATE_API_KEY 启用 API 翻译）")
 

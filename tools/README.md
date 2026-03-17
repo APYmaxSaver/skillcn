@@ -24,11 +24,13 @@ python tools/run.py --generate-only
 
 ## 环境变量
 
-| 变量 | 说明 | 必需 |
-|------|------|------|
-| `GITHUB_TOKEN` | GitHub Personal Access Token，提高 API 速率限制 | 推荐 |
-| `TRANSLATE_API_URL` | 翻译 API 地址（兼容 OpenAI 格式） | 可选 |
-| `TRANSLATE_API_KEY` | 翻译 API 密钥 | 可选 |
+| 变量 | 说明 | 默认值 | 必需 |
+|------|------|--------|------|
+| `GITHUB_TOKEN` | GitHub Personal Access Token，提高 API 速率限制 | - | 推荐 |
+| `TRANSLATE_API_URL` | 翻译 API 地址（标准 OpenAI 格式） | - | 可选 |
+| `TRANSLATE_API_KEY` | 翻译 API 密钥 | - | 可选 |
+| `TRANSLATE_MODEL` | 模型名称 | `gpt-4o-mini` | 可选 |
+| `TRANSLATE_SYSTEM_PROMPT` | 自定义翻译系统提示词 | 内置中文翻译提示 | 可选 |
 
 ### 配置 GitHub Token
 
@@ -40,20 +42,46 @@ export GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
 
 ### 配置翻译 API（可选）
 
-支持任何兼容 OpenAI 格式的 API：
+支持任何兼容 OpenAI `/v1/chat/completions` 格式的 API：
 
 ```bash
+# OpenAI 官方
+export TRANSLATE_API_URL="https://api.openai.com/v1/chat/completions"
+export TRANSLATE_API_KEY="sk-xxxx"
+export TRANSLATE_MODEL="gpt-4o-mini"
+
 # DeepSeek
 export TRANSLATE_API_URL="https://api.deepseek.com/v1/chat/completions"
 export TRANSLATE_API_KEY="sk-xxxx"
+export TRANSLATE_MODEL="deepseek-chat"
 
 # 智谱 AI
 export TRANSLATE_API_URL="https://open.bigmodel.cn/api/paas/v4/chat/completions"
 export TRANSLATE_API_KEY="xxxx"
+export TRANSLATE_MODEL="glm-4-flash"
+
+# 阿里通义千问
+export TRANSLATE_API_URL="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+export TRANSLATE_API_KEY="sk-xxxx"
+export TRANSLATE_MODEL="qwen-turbo"
+
+# 月之暗面 Kimi
+export TRANSLATE_API_URL="https://api.moonshot.cn/v1/chat/completions"
+export TRANSLATE_API_KEY="sk-xxxx"
+export TRANSLATE_MODEL="moonshot-v1-8k"
+
+# Azure OpenAI
+export TRANSLATE_API_URL="https://<resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=2024-02-01"
+export TRANSLATE_API_KEY="xxxx"
+export TRANSLATE_MODEL="gpt-4o-mini"
 
 # 本地 Ollama
 export TRANSLATE_API_URL="http://localhost:11434/v1/chat/completions"
 export TRANSLATE_API_KEY="ollama"
+export TRANSLATE_MODEL="qwen2.5:7b"
+
+# 自定义翻译提示词（可选）
+export TRANSLATE_SYSTEM_PROMPT="你是翻译专家，将英文技术文档翻译为中文，保留专有名词。"
 ```
 
 不配置翻译 API 时，使用内置词典翻译（覆盖 100+ 常见技能）。
